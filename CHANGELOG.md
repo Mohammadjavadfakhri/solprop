@@ -131,6 +131,52 @@ All notable changes to solprop are recorded here. The format follows
   tutorials and the planar compressor ship as examples; `Recipe.preview_input()` gives a
   free-space beam's power, energy and fluence at the launch plane, and `Recipe.modes()`
   the planar route's slab channels.
+- A published-install check after each PyPI release, on all four wheel platforms:
+  fresh CPython 3.14 environments resolve the native extra with pip and verify its
+  version, dependencies and default backend. The same check can be run by hand for a
+  named release, with an optional run of its tagged README example and retained logs.
+- `solprop.spatial.spatial_energy_spectrum(spectrum, flux)` splits the energy that
+  `spatial_energy` measures into frequency bins, in J (J/m on a line), on radial,
+  Cartesian, line and planar planes, and the bins sum to the total. It is not the density
+  `beam_spectrum`. The coupling elements used it privately, and their reports do not
+  change. On a spatial file, the spectral readers' refusal now names it on every route,
+  planar included ([#184](https://github.com/LupoLab/solprop/issues/184)).
+- A waveguide-route example recipe, `Recipe.example("hollow_rectangular")`: an argon-filled
+  hollow silica channel in its lowest x-polarised mode, mirroring a new tutorial built with a
+  plain `prop_waveguide`, so the route has a recipe a front end can start from.
+- `solprop.recipe.metadata.per_unit_width(route, values)` says when a recipe's pulse energy
+  and peak power are per metre of y (a waveguide recipe of slab modes), and the waveguide
+  route's energy and peak-power summaries say so, so a front end shows J/m and W/m there.
+- A radial-route example recipe, `Recipe.example("radial_kerr")`: a collimated beam in
+  argon under the Kerr effect on a Hankel grid, mirroring a new tutorial built with a plain
+  `prop_radial`, so every route has a recipe a front end can start from.
+- `solprop.recipe.metadata.parameters` takes a registered type's name (`"GaussianPulse"`,
+  `"PressureGradient.two_point"`, `"RadialGrid"` and the rest) and gives its keywords the
+  same metadata a route keyword has: forms with units and ranges, a level, a one-line
+  summary, a display unit, a manual anchor and the signature's default.
+- `Recipe.modes()` gives each mode's effective index, group delay (`beta1`), third-order
+  dispersion (`beta3`) and nonlinear coefficient (`gamma`) over the band, beside `beta`,
+  `beta2`, the loss, the effective area and the zero-dispersion wavelength. The new
+  `solprop.modes.base.beta3` differences the analytic `beta1` twice.
+- `Recipe.modes()` gives each mode's phase matching to a soliton at the pump in the launch
+  mode: the `phase_mismatch` of a dispersive wave in that mode over the band and its
+  phase-matched wavelengths `rdw` (intermodal for every mode but the first), with the
+  soliton's nonlinear wavenumber where the recipe's pulse and fill give one. The mode set
+  says which (`pump`, `nonlinear`). The GNLSE route has a mode preview too: its one specified
+  mode, phase-matched with the recipe's `gamma`.
+- The installation page now explains how to install a development version from CI's wheels with no compiler, and `poe fetch-wheel` now finds CI's Windows on Arm wheel.
+- `solprop-native` wheels use CPython's stable ABI, so one wheel serves Python 3.14 and later.
+  solprop itself still needs pyFFTW and h5py wheels on 3.15.
+- `solprop-native` wheels for Windows on Arm (`win-arm64`), and an x86-64-v2 build beside the
+  x86-64-v3 one in the Linux and Windows x86-64 wheels, chosen at import, so processors
+  without AVX2 now run the native backend. The v2 build runs about 20 to 25 % longer by
+  geometric mean. `SOLPROP_NATIVE_CPU_VARIANT=x86-64-v2` asks for it.
+- A plane observer can measure a spatial run's planes while it runs: `PlaneView.stored()` returns the plane's stored spectrum (what the `solprop.spatial` functionals take with the run's `SpatialFlux`) and `PlaneView.field_plane()` the plane as `processing.field_plane` reads it, whose `spectral_energy` is the beam's energy per bin.
+- `Recipe.run_keywords()` returns the keywords of `Simulation.run` the recipe's `[execution]` table sets (`memory_budget`), so a caller that builds the simulation itself, to keep it while it runs, runs it as `Recipe.run` would.
+- `SOLPROP_REQUIRE_DEVICE` (`cuda`, `hip` or `any`) makes a run refuse before allocating anything unless it would execute on a native device build that sees a device, so a job doesn't fall onto a CPU wheel that a new release installed over its source build.
+- `solprop.processing.get_spectrogram` returns a plane's spectrogram as data (gate positions,
+  spectral axis and map, per unit of the axis asked for, with a `bandpass=` window), the map
+  `plotting.spectrogram` draws, so a front end can draw it interactively.
 
 ### Changed
 
@@ -176,6 +222,21 @@ All notable changes to solprop are recorded here. The format follows
 - The README, `CITATION.cff` and the citing page name solprop's Zenodo DOI,
   [10.5281/zenodo.23854248](https://doi.org/10.5281/zenodo.23854248), which covers
   every release.
+- Kernel schema 42: `KernelProblem.initial.field0` may be a zero-stride broadcast view, and
+  every backend's `set_initial`, solprop-native's included, accepts a field of any strides
+  and copies it contiguous. No field or signature moves (#5).
+- Notable changes are recorded in separate release-note fragments and collected into one
+  rolling draft release PR after merges. Implementation PRs no longer edit the shared
+  changelog, avoiding conflicts between unrelated changes. Release tags and publication
+  remain manual.
+- A plain `uv sync` in a checkout now compiles the native backend, and `uv sync --extra native` is gone. Python and documentation contributors with no compiler can use `uv run --no-project tools/setup_light.py`, and `poe fetch-wheel` installs the wheel CI built, refusing one that doesn't fit the tree.
+- Kernel schema 43: under `absorber_scheme="split_step"` a backend's boundary reading also
+  returns the energy and the guards' and collar's energies of the power each step's split
+  found (`solprop.monitor.BoundaryEnergies.found`) and the state's energy per walk-off
+  bucket (`BoundaryEnergies.occupancy`), from the problem's new `split_crossing`; the
+  native reading grows from six numbers to ten plus the buckets, and the native Adams march
+  takes the crossing cap per call. A solprop-native build of an earlier schema is refused
+  at import; rebuild it from this tree.
 
 ### Changed (breaking)
 
@@ -247,6 +308,23 @@ All notable changes to solprop are recorded here. The format follows
   amplitude −0.9, came out 85 % wrong with no warning. The class evaluates the record's
   transform exactly at the grid's frequencies, 3e-12 from the direct sum on that case,
   less its mean: a baseline is an offset of the instrument, not part of the field.
+- An envelope run's frame beside a third harmonic now follows one rule, `solprop.translate.responses.declares_harmonic_carrier`, which translation checks against the compiled harmonic carrier (#77). Two things change for users. First, an explicit `Frame(omega0, subtract_beta0=True)` beside a `KerrResponse` or `DispersiveKerrResponse` with `thg=True` on an envelope grid is now refused with a `TranslationError`, where it was accepted and drove the harmonic with a spurious phase mismatch: drop the explicit `frame=` to take the co-moving frame, which keeps `beta_0` there, or pass `Frame(omega0, subtract_beta0=False)`. Second, a Raman response's `thg` (the `RamanResponse` default is `True`), which an envelope grid ignores, no longer keeps `beta_0` beside `KerrResponse(thg=False)` when no frame is given: such a run, built from explicit responses or on a spatial route, now removes `beta_0`, so its stored envelope's carrier phase differs from before while intensities and spectral densities agree to the stepper's accuracy, and its run record now states the frame its operator used. A file saved by such a run before this change is refused on resume, naming `configuration: frame`, because continuing it would change frame mid-run: run it again from the start. The keyword interfaces, which set the Raman flag from `thg`, are unaffected.
+- A Multistep run's call ledger (`logical_calls` and `execution.response_calls` in the
+  run's outcome, `/meta/outcome` in an HDF5 file) records its predictor orders run-length
+  encoded, as `[order, count]` pairs, instead of one integer per accepted step;
+  `CallLedger.to_record` writes them and `CallLedger.from_record` reads them back step by
+  step. `/meta/outcome` is rewritten in place at every plane rather than deleted and
+  recreated. The output schema stays 2, the version 0.2.0 is the first to release: a file
+  written by an earlier development build of schema 2 that holds the flat list of orders
+  is refused by name on resume; rerun the case, or read it with that build
+  ([#80](https://github.com/LupoLab/solprop/issues/80)).
+- `backend="auto"` has no fallback: it is `native`, and refuses with no native package or on a processor below the floor, such as Arm below Neoverse N1. A TDSE response still resolves to `numpy_ref` and single precision to `mlx`. `numpy_ref` stays selectable by name, as the numerical reference and for the features only it runs.
+- `solprop-native` is a required dependency, with no extra: `pip install solprop` installs it, and solprop is supported where it installs ([SEP 43](docs/dev/seps/archive/sep-0043-retire-numba-cpu.md)). On any other platform, including Intel macOS, ppc64le, musl and macOS before 14, the installer reports that no matching distribution exists; the installation page explains that and how to report a platform. The `native` extra is gone.
+
+### Removed
+
+- The `numba_cpu` backend, and the `numba` and `pyfftw` dependencies ([SEP 43](docs/dev/seps/archive/sep-0043-retire-numba-cpu.md), ADR-064). `backend="numba_cpu"` raises `BackendError`, naming `native` and `numpy_ref`. An output or snapshot of this release's schema that records `numba_cpu` still loads, and a stopped run continues on another backend by changing the name. A file written by 0.1.0 is refused by its output schema, as every file of another schema is: read it with `solprop==0.1.0`, which is also the rollback.
+- The settings that only `numba_cpu` read: `SOLPROP_NUMBA_THREADS`, `SOLPROP_NUMBA_REGIME`, `SOLPROP_FFTW_THREADS`, `SOLPROP_TRANSVERSE_FFTW_THREADS`, `SOLPROP_PASS_TIMERS`, `NUMBA_DISABLE_JIT` and `NUMBA_NUM_THREADS`. Drop them from job scripts; they now do nothing. `SOLPROP_THREADS`, `SOLPROP_NATIVE_THREADS`, `SOLPROP_FFTW_PLAN`, `SOLPROP_FFTW_WISDOM` and `SOLPROP_BLAS_THREADS` stay.
 
 ### Fixed
 
@@ -308,6 +386,77 @@ All notable changes to solprop are recorded here. The format follows
   record's length from `t = 0` changed its phase by more than pi per bin, so it was moved
   by one record length with no warning: at 500 fs in a record from 0 to 800 fs it came out
   at −300 fs.
+- Correct the 0.1.0 limitation statement about `mlx`: its custom Metal kernels already
+  run in continuous integration's macOS default lane. That lane now requires Metal,
+  so losing the device fails the job rather than silently skipping the kernel tests.
+  MLX coverage, runtime type checks and an explicit CPU-device pass remain absent.
+- Guide and incident-plane construction, kernel translation and coupling now limit
+  NumPy's and SciPy's controllable BLAS pools to one thread, or `SOLPROP_BLAS_THREADS`
+  within the process budget, and restore their previous limits afterwards. This
+  prevents the thousands of small graded-index eigensolves from occupying every CPU
+  before a backend starts.
+  Vendor thread defaults are overridden only during construction; the native
+  backend's own BLAS keeps its fitted width.
+- The native backend now refuses an unknown `SOLPROP_FFTW_PLAN` value, which it had read as `measure`, and a problem whose `response_order` omits a response it holds, which it had run anyway. An empty `SOLPROP_FFTW_PLAN` now counts as unset (#460).
+- A native run under Runge-Kutta or Adams now records the `propagator_mode` it used, `recompute`, when `tabulate` was asked for; it had recorded `tabulate`, which that march can't do. The run's configuration still keeps what was asked (#464).
+- Documented the limits of `FixedSchedule.from_history`. Every collar refusal a replayed history can reach (the temporal collar's stable step, and a requested spatial collar's stable step and its fixed-schedule crossing and damping bounds) now prints its limit rounded down and names the remedy: `dz_max` at or under the printed limit in the discovery run, run with the replay's integrator where the limit is a stability limit, or, for the temporal collar alone, `absorber_scheme="split_step"` in both runs. The docstring and the [fixed schedules guide](docs/guide/numerics/fixed-schedules.md) state these limits and the interpolated-plane and non-abutting-history ones, relate `from_history` to `discover`, and replace the claim that a `Multistep` replay makes its adaptive run's truncation errors: compare two replays of one schedule instead, and for a comparison of the arithmetic alone replay with fixed orders (`RungeKutta()` or `Multistep(variable_order=False)`), since a variable-order replay's order choice can turn on rounding (#82).
+- A translated problem no longer holds a full copy of a broadcast initial field (#5): a
+  `numpy.broadcast_to` placeholder, of any numeric dtype, costs only the block it repeats.
+  Every other initial field, noise realisation and batch parameter is now copied, so
+  changing the caller's array after translation can no longer change the problem, and the
+  caller's array is no longer made read-only; before, a contiguous complex128 field and a
+  noise realisation were shared with the caller. `estimate_memory` and the memory
+  admission count the field the problem holds, as the resident group `initial_field`
+  (#6), which the admission charges to the host and not to an accelerator.
+- A boundary monitor built for another grid is now refused by name on every backend, instead
+  of a bare `ValueError` on `native` and an accident in `matmul` on `numpy_ref`. A direct call
+  to `native`'s `stats` now checks every route for names the route doesn't define, and refuses
+  a general flux statistic under a weight other than one rather than ignoring the weight.
+- The versions of solprop, solprop-native and solprop-gui now come from `v*` tags only, so another tag on a commit can no longer set them. Building any of them now needs setuptools-scm 9, and solprop-native requires NumPy 2.5, as solprop does (#92).
+- An output file no longer grows with the square of its planes. `HDF5Output` rewrites
+  `/meta/outcome` in place instead of deleting and recreating it at every plane, a saved
+  plane builds and validates its run record once instead of nine times, and the
+  Multistep call ledger's orders are run-length encoded: a Multistep run saved step by
+  step (`step_planes=1`) costs 19.5 kB a plane at 707 planes and 19.3 kB at 3479, where
+  it cost 23.8 kB and 31.5 kB. The step driver keeps only the error norms its controller
+  reads, not one per accepted step
+  ([#80](https://github.com/LupoLab/solprop/issues/80)).
+- With `/proc/cpuinfo` unreadable, native chose its x86-64-v3 build, so a lower processor could reach an illegal instruction ([#443](https://github.com/LupoLab/solprop/issues/443)). It now asks NumPy, and refuses before loading if neither answers. The Windows on Arm wheel gains a processor check too, for the Armv8.2-A OpenBLAS it links.
+- A `Simulation` built from an array input now copies the array at construction, so
+  changing it before the run no longer changes the run, its construction-time checks or
+  its recorded configuration (#434). `Simulation.initial` is a read-only view of that copy
+  as the caller gave it, so an input of another dtype is recorded unchanged and older
+  files resume. On free-space and spatial routes the translated problem holds the same
+  copy; on a modal route it holds the converted launch beside it, two states, which the
+  memory admission counts as `simulation_input`. A `numpy.broadcast_to` input copies only
+  the block it repeats.
+- Fixed the reference's single-precision path leaving binary32 on two paths that it then narrowed without a check: the split-step collar now keeps a complex64 state in binary32, as the correction `a + F(F^-1(a)(f - 1))` that `mlx` uses (binary64 runs are unchanged), and a fixed-schedule batch of single-precision `numpy_ref` members now steps each member through its own binary32 trial instead of the binary64 batch arithmetic, and a lockstep batch refuses members of mixed precisions. The finished state is now refused by name if it is not complex64 (#79).
+- On a radial, Cartesian, line or planar output, the processing readers that read each
+  transverse column as a modal amplitude in sqrt(W) now refuse the file by name with an
+  `OutputError` that names the spatial functional to use, instead of returning wrong
+  numbers silently (a 3 nJ launch read back as 4.8e-15 J). They are `energy`,
+  `peak_power`, `get_power`, `get_spectral_density`, `fwhm_t`, `fwhm_f`, `time_bandwidth`,
+  `arrival_time`, `field_autocorrelation`, `intensity_autocorrelation` and
+  `coherence_time`, the plots `prop_2d`, `time_1d`, `spec_1d` and `plot_energy`, and a
+  plane observer's `power` and `spectral_density`. Use `solprop.spatial.spatial_energy`,
+  `spatial_power` and their neighbours on a saved plane, or the run's `stats/energy`,
+  which is unchanged; `get_spectrum`, `get_field` and `get_phase` still return the stored
+  columns. `solprop.capabilities.output` gains `refused_readers`, which states these
+  refusals with the readers' own text, while it still admits a spatial file's `energy`
+  statistic. Modal files read as before (#147, #406).
+- Under `absorber_scheme="split_step"`, the default on the spatial routes, the boundary
+  monitor judges the time window's guards on the power each step's split finds, halfway
+  through its factor, instead of the state it leaves, whose guards it had damped by about
+  `e^-10`: a pulse walking out of the window is now stopped where the in-stage scheme
+  stops it (#127). Steps are also held to the split collar's crossing limit, half the
+  collar's width over the walk-off of the fastest light holding more than `1e-6` of the
+  energy, so that no step carries light through the collar and round the window undamped
+  (issues #149 and #440). It is read from the launch at translation, which holds `dz_max`
+  and refuses a longer fixed schedule, and again from the state at every check, which caps
+  the steps after it and stops a fixed schedule it falls below. See [absorbing
+  boundaries](docs/guide/numerics/boundaries.md#the-two-temporal-schemes).
+- `StepIndexMode` builds fibres up to V = 20000 and refuses larger ones with a message that says so; it refused most fibres above V of about 26, a 100 µm core of numerical aperture 0.22 at 1030 nm among them, because its root scan lost close pairs of HE and EH roots, and from a cladding argument of about 700 the unscaled modified Bessel functions underflowed. It also refused every EH family from an azimuthal order of about 40, where J_n underflowed at small u. The lost roots are now bracketed by each family's own factor of the characteristic product; the scan runs from the family's first cutoff to the one above the requested radial order, so a low-order mode costs the same at any V; and the modified Bessel ratios and exterior fields use the exponentially scaled functions, with a recurrence where those overflow at large order. Effective indices below V = 26 move by at most one rounding (#148).
+- On Windows on Arm, `Pool` scans no longer fail or hang in NumPy's linear solves. Workers now limit BLAS through `threadpoolctl` instead of thread variables, which crash or hang NumPy's OpenBLAS on that platform at small widths, and `import solprop` warns if such a value is set.
 
 ## [0.1.0] - 2026-10-31
 
